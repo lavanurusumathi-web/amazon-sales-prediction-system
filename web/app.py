@@ -58,6 +58,7 @@ is_trained: bool = False
 is_training: bool = False
 training_progress: float = 0.0
 training_history: List[Dict] = []
+amazon_scraper: Any = None
 
 executor = ThreadPoolExecutor(max_workers=1)
 
@@ -69,7 +70,7 @@ def get_project_root() -> Path:
 @app.on_event("startup")
 async def startup():
     """Initialize the system, loading pre-trained models if available."""
-    global dataset, preprocessor, feature_engineer, trainer, evaluator, predictor, is_trained
+    global dataset, preprocessor, feature_engineer, trainer, evaluator, predictor, is_trained, amazon_scraper
 
     data_dir = get_project_root() / "data"
     model_dir = get_project_root() / "models"
@@ -128,6 +129,17 @@ async def startup():
         except Exception as e:
             logger.warning(f"Could not load pre-trained models: {e}")
             is_trained = False
+
+    # Initialize persistent Selenium scraper (reuse across requests)
+    try:
+        logger.info("Starting Chrome scraper (headless)...")
+        from data.scraper import AmazonScraper
+        amazon_scraper = AmazonScraper()
+        amazon_scraper._get_driver()
+        logger.info("Chrome scraper ready")
+    except Exception as e:
+        logger.warning(f"Chrome scraper not available: {e}")
+        amazon_scraper = None
 
 
 # ============================================================
@@ -610,10 +622,11 @@ async def scraper_page(request: Request):
 
 @app.post("/api/scrape")
 async def scrape_product(asin: str = Form(...)):
+    global amazon_scraper
+    if amazon_scraper is None:
+        raise HTTPException(503, "Live scraper unavailable (Chrome/browser not available on this server)")
     try:
-        from data.scraper import AmazonScraper
-        scraper = AmazonScraper()
-        result = scraper.get_product(asin)
+        result = amazon_scraper.get_product(asin)
         return JSONResponse(result)
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -621,10 +634,11 @@ async def scrape_product(asin: str = Form(...)):
 
 @app.get("/api/scrape/search")
 async def scrape_search(q: str = Query(...), limit: int = Query(10)):
+    global amazon_scraper
+    if amazon_scraper is None:
+        raise HTTPException(503, "Live scraper unavailable (Chrome/browser not available on this server)")
     try:
-        from data.scraper import AmazonScraper
-        scraper = AmazonScraper()
-        results = scraper.search(q, max_results=limit)
+        results = amazon_scraper.search(q, max_results=limit)
         return JSONResponse(results)
     except Exception as e:
         raise HTTPException(500, str(e))
