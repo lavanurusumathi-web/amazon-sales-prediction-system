@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary" onclick="trainModels()" id="trainBtn">
+    🚀 Train Models
+</button>
+<button class="btn btn-sm" onclick="regenerateData()">🔄 Regenerate Data</button>
+{% endblock %}
+
+{% block content %}
+<div class="progress-bar" id="progressBar">
+    <div class="fill" id="progressFill"></div>
+</div>
+
+<!-- Stats Grid -->
+<div class="grid-4 mb-24">
+    <div class="stat-card">
+        <div class="stat-label">Total Products</div>
+        <div class="stat-value">{{ stats.total_products|default(0) }}</div>
+        <div class="stat-desc">Across {{ stats.n_categories|default(0) }} categories</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Sales</div>
+        <div class="stat-value">{{ "{:,.0f}".format(stats.total_sales|default(0)) }}</div>
+        <div class="stat-desc">Units sold</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Revenue</div>
+        <div class="stat-value">${{ "{:,.0f}".format(stats.total_revenue|default(0)) }}</div>
+        <div class="stat-desc">Avg rating: {{ "%.2f"|format(stats.avg_rating|default(0)) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Avg Daily Sales</div>
+        <div class="stat-value">{{ "{:,.0f}".format(stats.avg_daily_sales|default(0)) }}</div>
+        <div class="stat-desc">Avg price: ${{ "%.2f"|format(stats.avg_price|default(0)) }}</div>
+    </div>
+</div>
+
+<div class="grid-2 mb-24">
+    <!-- Daily Sales Chart -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Daily Sales Trends</div>
+                <div class="card-subtitle">Last 60 days</div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="dailySalesChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Category Breakdown -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Revenue by Category</div>
+                <div class="card-subtitle">Top 10 categories</div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Top Products -->
+<div class="card mb-24">
+    <div class="card-header">
+        <div>
+            <div class="card-title">Top Products by Revenue</div>
+            <div class="card-subtitle">Top 20 performing products</div>
+        </div>
+        <a href="/products" class="btn btn-sm">View All →</a>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Rating</th>
+                    <th>Revenue</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in top_products[:10] %}
+                <tr>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ p.product_title }}
+                    </td>
+                    <td><span class="status-badge" style="background: rgba(88,166,255,0.15); color: var(--info);">{{ p.category }}</span></td>
+                    <td>${{ "%.2f"|format(p.price|default(0)) }}</td>
+                    <td>⭐ {{ "%.1f"|format(p.rating|default(0)) }}</td>
+                    <td><strong>${{ "{:,.0f}".format(p.total_revenue|default(p.revenue|default(0))) }}</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted">No data available</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Model Performance -->
+{% if is_trained %}
+<div class="grid-2 mb-24">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Model Performance</div>
+                <div class="card-subtitle">Test set evaluation metrics</div>
+            </div>
+        </div>
+        <div id="modelMetrics">
+            <p class="text-muted">Loading metrics...</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Feature Importance</div>
+                <div class="card-subtitle">Top factors driving sales predictions</div>
+            </div>
+        </div>
+        <div class="chart-container" style="height: 350px;">
+            <canvas id="featureChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+    // Daily Sales Chart
+    const dailyData = {{ daily_trends|tojson|safe }};
+    if (dailyData && dailyData.length > 0) {
+        const ctx = document.getElementById('dailySalesChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dailyData.map(d => d.date ? d.date.slice(5,10) : ''),
+                datasets: [{
+                    label: 'Total Sales',
+                    data: dailyData.map(d => d.total_sales),
+                    borderColor: '#ff9900',
+                    backgroundColor: 'rgba(255, 153, 0, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                }, {
+                    label: 'Revenue ($)',
+                    data: dailyData.map(d => d.total_revenue),
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    yAxisID: 'y1',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: { legend: { labels: { color: '#8b949e' } } },
+                scales: {
+                    x: { ticks: { color: '#484f58', maxTicksLimit: 12 }, grid: { color: '#21262d' } },
+                    y: { ticks: { color: '#484f58' }, grid: { color: '#21262d' } },
+                    y1: { position: 'right', ticks: { color: '#484f58' }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // Category Chart
+    const catData = {{ category_data|tojson|safe }};
+    if (catData && catData.length > 0) {
+        const colors = ['#ff9900', '#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#79c0ff', '#56d364', '#e3b341', '#ff7b72'];
+        const ctx2 = document.getElementById('categoryChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: catData.map(d => d.category),
+                datasets: [{
+                    data: catData.map(d => d.total_revenue),
+                    backgroundColor: colors.slice(0, catData.length),
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#8b949e', padding: 12, font: { size: 11 } }
+                    }
+                }
+            }
+        });
+    }
+
+    // Train Models
+    async function trainModels() {
+        const btn = document.getElementById('trainBtn');
+        const progress = document.getElementById('progressBar');
+        const fill = document.getElementById('progressFill');
+        btn.disabled = true;
+        btn.textContent = '⏳ Training...';
+        progress.classList.add('active');
+
+        try {
+            const resp = await fetch('/api/train', { method: 'POST' });
+            const data = await resp.json();
+
+            if (data.success) {
+                const poll = setInterval(async () => {
+                    try {
+                        const statusResp = await fetch('/api/training-status');
+                        const statusData = await statusResp.json();
+                        fill.style.width = (statusData.progress * 100) + '%';
+
+                        if (statusData.trained || !statusData.training) {
+                            clearInterval(poll);
+                            fill.style.width = '100%';
+                            updateTrainingStatus(true);
+                            showToast('✅ Models trained successfully!');
+                            setTimeout(() => location.reload(), 1500);
+                        }
+                    } catch (e) {
+                        clearInterval(poll);
+                    }
+                }, 1500);
+            } else {
+                showToast('❌ ' + (data.detail || 'Training failed'), true);
+                btn.disabled = false;
+                btn.textContent = '🚀 Train Models';
+                progress.classList.remove('active');
+            }
+        } catch (err) {
+            showToast('❌ Training error: ' + err.message, true);
+            btn.disabled = false;
+            btn.textContent = '🚀 Train Models';
+            progress.classList.remove('active');
+        }
+    }
+
+    // Regenerate Data
+    async function regenerateData() {
+        if (!confirm('Regenerate the sample dataset? This will reset all data.')) return;
+
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '⏳ Generating...';
+
+        try {
+            const resp = await fetch('/api/regenerate-data?n_products=2000&n_days=365');
+            const data = await resp.json();
+            if (data.success) {
+                showToast(`✅ ${data.message}`);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast('❌ Generation failed', true);
+                btn.disabled = false;
+                btn.textContent = '🔄 Regenerate Data';
+            }
+        } catch (err) {
+            showToast('❌ Error: ' + err.message, true);
+            btn.disabled = false;
+            btn.textContent = '🔄 Regenerate Data';
+        }
+    }
+
+    // Load model metrics if trained
+    {% if is_trained %}
+    fetch('/api/training-status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.metrics && data.metrics.length > 0) {
+                let html = '<div class="table-container"><table><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th></tr></thead><tbody>';
+                data.metrics.forEach(m => {
+                    html += `<tr>
+                        <td><strong>${m.model_dataset || 'Model'}</strong></td>
+                        <td>${(m.rmse || 0).toFixed(2)}</td>
+                        <td>${(m.mae || 0).toFixed(2)}</td>
+                        <td>${(m.mape || 0).toFixed(1)}%</td>
+                        <td>${(m.r2 || 0).toFixed(4)}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                document.getElementById('modelMetrics').innerHTML = html;
+            }
+            if (data.feature_importance && data.feature_importance.length > 0) {
+                const fi = data.feature_importance.slice(0, 10);
+                const ctx3 = document.getElementById('featureChart').getContext('2d');
+                new Chart(ctx3, {
+                    type: 'bar',
+                    data: {
+                        labels: fi.map(d => d.feature),
+                        datasets: [{
+                            label: 'Importance %',
+                            data: fi.map(d => d.importance_pct),
+                            backgroundColor: '#ff9900',
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: '#484f58' }, grid: { color: '#21262d' } },
+                            y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { display: false } }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(() => {});
+    {% endif %}
+</script>
+{% endblock %}

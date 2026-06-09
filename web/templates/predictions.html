@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}Predictions{% endblock %}
+{% block heading %}Sales Predictions{% endblock %}
+
+{% block topbar_actions %}
+{% endblock %}
+
+{% block content %}
+<div class="grid-2 mb-24">
+    <!-- Product Selection -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">Select Product</div>
+        </div>
+        <form method="GET" class="flex gap-8" style="align-items: flex-end;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="product_id">Product ID</label>
+                <select name="product_id" id="product_id" class="w-full" onchange="this.form.submit()">
+                    <option value="">-- Select a product --</option>
+                    {% for p in products_list %}
+                    <option value="{{ p.product_id }}" {% if p.product_id == product_id %}selected{% endif %}>
+                        {{ p.product_title[:60] }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="days">Days Ahead</label>
+                <select name="days" onchange="this.form.submit()">
+                    <option value="7" {% if days == 7 %}selected{% endif %}>7 days</option>
+                    <option value="14" {% if days == 14 %}selected{% endif %}>14 days</option>
+                    <option value="30" {% if days == 30 %}selected{% endif %}>30 days</option>
+                    <option value="60" {% if days == 60 %}selected{% endif %}>60 days</option>
+                    <option value="90" {% if days == 90 %}selected{% endif %}>90 days</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <!-- Model Status -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">Model Status</div>
+        </div>
+        {% if is_trained %}
+        <div class="flex gap-16" style="align-items: center;">
+            <span class="status-badge status-trained">● Models Trained</span>
+            <span class="text-success">✓ Ready for predictions</span>
+        </div>
+        {% else %}
+        <div>
+            <span class="status-badge status-untrained">○ Not Trained</span>
+            <p class="text-muted mt-16">
+                Models need to be trained first. Go to the <a href="/" style="color: var(--primary);">Dashboard</a>
+                and click "Train Models".
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if product_id and is_trained and forecast %}
+<!-- Product Info -->
+<div class="card mb-24">
+    <div class="flex-between">
+        <div>
+            <h3 style="font-size: 18px; margin-bottom: 4px;">{{ product_info.title }}</h3>
+            <div class="flex gap-16 text-muted" style="font-size: 13px;">
+                <span>🏷️ {{ product_info.category }}</span>
+                <span>⭐ {{ "%.1f"|format(product_info.rating|default(0)) }}</span>
+                <span>💰 ${{ "%.2f"|format(product_info.price|default(0)) }}</span>
+            </div>
+        </div>
+        <div class="text-right">
+            <div style="font-size: 12px; color: var(--text-muted);">Predicted total ({{ days }} days)</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--primary);">
+                {{ forecast_total|default(0)|int }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Forecast Chart -->
+<div class="card mb-24">
+    <div class="card-header">
+        <div>
+            <div class="card-title">Sales Forecast</div>
+            <div class="card-subtitle">Next {{ days }} days with {{ "%.0f"|format(80) }}% confidence interval</div>
+        </div>
+    </div>
+    <div class="chart-container" style="height: 400px;">
+        <canvas id="forecastChart"></canvas>
+    </div>
+</div>
+
+<!-- Forecast Table -->
+<div class="grid-2 mb-24">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">Daily Forecast</div>
+        </div>
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Predicted Sales</th>
+                        <th>Low</th>
+                        <th>High</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in forecast %}
+                    <tr>
+                        <td>{{ f.date[:10] }}</td>
+                        <td><strong>{{ f.predicted_sales|int }}</strong></td>
+                        <td class="text-warning">{{ f.lower_bound|int }}</td>
+                        <td class="text-info">{{ f.upper_bound|int }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- What-If Analysis -->
+    {% if what_if_scenarios %}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">What-If Analysis</div>
+            <div class="card-subtitle">How changes affect predictions</div>
+        </div>
+        <div class="chart-container" style="height: 400px;">
+            <canvas id="whatifChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if not product_id %}
+<div class="card text-center" style="padding: 60px;">
+    <div style="font-size: 48px; margin-bottom: 16px;">🎯</div>
+    <h3 style="margin-bottom: 8px;">Select a Product</h3>
+    <p class="text-muted">Choose a product from the dropdown above to see its sales forecast.</p>
+    {% if not is_trained %}
+    <p class="text-muted mt-16">Then train the models on the dashboard first!</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+{% if forecast and is_trained %}
+    const forecastData = {{ forecast|tojson|safe }};
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: forecastData.map(d => d.date ? d.date.slice(5,10) : ''),
+            datasets: [{
+                label: 'Predicted Sales',
+                data: forecastData.map(d => d.predicted_sales),
+                borderColor: '#ff9900',
+                backgroundColor: 'rgba(255, 153, 0, 0.1)',
+                fill: false,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+            }, {
+                label: 'Upper Bound',
+                data: forecastData.map(d => d.upper_bound),
+                borderColor: 'rgba(88, 166, 255, 0.3)',
+                backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                fill: '+1',
+                tension: 0.4,
+                pointRadius: 0,
+                borderDash: [3, 3],
+            }, {
+                label: 'Lower Bound',
+                data: forecastData.map(d => d.lower_bound),
+                borderColor: 'rgba(88, 166, 255, 0.3)',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.4,
+                pointRadius: 0,
+                borderDash: [3, 3],
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { labels: { color: '#8b949e' } }
+            },
+            scales: {
+                x: { ticks: { color: '#484f58', maxTicksLimit: 15 }, grid: { color: '#21262d' } },
+                y: { beginAtZero: true, ticks: { color: '#484f58' }, grid: { color: '#21262d' } }
+            }
+        }
+    });
+
+    {% if what_if_scenarios %}
+    const whatifData = {{ what_if_scenarios|tojson|safe }};
+    if (whatifData && whatifData.length > 0) {
+        const ctx2 = document.getElementById('whatifChart').getContext('2d');
+        const datasets = [];
+        const colors = ['#ff9900', '#58a6ff', '#3fb950', '#d29922'];
+        let i = 0;
+
+        // Find all scenario columns
+        const scenarioKeys = Object.keys(whatifData[0]).filter(k => k !== 'date' && k !== 'baseline_sales');
+
+        // Baseline first
+        if (whatifData[0].baseline_sales !== undefined) {
+            datasets.push({
+                label: 'Current (Baseline)',
+                data: whatifData.map(d => d.baseline_sales),
+                borderColor: '#ff9900',
+                borderWidth: 2,
+                tension: 0.4,
+                pointRadius: 0,
+            });
+        }
+
+        scenarioKeys.forEach(key => {
+            if (key.endsWith('_sales')) {
+                datasets.push({
+                    label: key.replace('_sales', ''),
+                    data: whatifData.map(d => d[key]),
+                    borderColor: colors[(i + 1) % colors.length],
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    pointRadius: 0,
+                });
+                i++;
+            }
+        });
+
+        new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: whatifData.map(d => d.date ? d.date.slice(5,10) : ''),
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { labels: { color: '#8b949e', font: { size: 10 } } }
+                },
+                scales: {
+                    x: { ticks: { color: '#484f58', maxTicksLimit: 10 }, grid: { color: '#21262d' } },
+                    y: { beginAtZero: true, ticks: { color: '#484f58' }, grid: { color: '#21262d' } }
+                }
+            }
+        });
+    }
+    {% endif %}
+{% endif %}
+</script>
+{% endblock %}

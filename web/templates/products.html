@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block heading %}Product Catalog{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card mb-24">
+    <form method="GET" class="flex flex-between" style="gap: 16px; flex-wrap: wrap;">
+        <div class="flex gap-8" style="flex: 1; min-width: 200px;">
+            <input type="text" name="search" placeholder="Search products..." value="{{ search_query }}" style="flex: 1;">
+            <select name="category" style="min-width: 150px;">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+            <select name="sort">
+                <option value="revenue" {% if sort_by == 'revenue' %}selected{% endif %}>Sort by Revenue</option>
+                <option value="sales" {% if sort_by == 'sales' %}selected{% endif %}>Sort by Sales</option>
+                <option value="rating" {% if sort_by == 'rating' %}selected{% endif %}>Sort by Rating</option>
+                <option value="price" {% if sort_by == 'price' %}selected{% endif %}>Sort by Price</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">🔍 Search</button>
+    </form>
+</div>
+
+<!-- Product Grid -->
+<div class="grid-products">
+    {% for p in products %}
+    <div class="product-card" onclick="window.location.href='/predictions?product_id={{ p.id }}'" style="cursor: pointer;">
+        <div class="title">{{ p.title }}</div>
+        <div class="meta mb-16">
+            <span>🏷️ {{ p.category }}</span>
+            <span>⭐ {{ "%.1f"|format(p.rating|default(0)) }}</span>
+            <span>💬 {{ p.review_count|default(0) }}</span>
+        </div>
+        <div class="flex-between">
+            <div>
+                <div style="font-size: 18px; font-weight: 700;">${{ "%.2f"|format(p.price|default(0)) }}</div>
+                {% if p.list_price and p.list_price > p.price %}
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    <s>${{ "%.2f"|format(p.list_price) }}</s>
+                    <span class="text-success">-{{ "%.0f"|format((p.list_price - p.price) / p.list_price * 100) }}%</span>
+                </div>
+                {% endif %}
+            </div>
+            <div class="text-right">
+                <div style="font-size: 13px; font-weight: 600;">{{ p.sales|default(0) }} sold</div>
+                <div style="font-size: 11px; color: var(--text-muted);">{{ p.brand|default('') }}</div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card text-center" style="grid-column: 1 / -1;">
+        <p class="text-muted">No products found matching your search.</p>
+        <a href="/products" class="btn mt-16">Clear Filters</a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex-between mt-24">
+    <div class="text-muted">Page {{ page }} of {{ total_pages }}</div>
+    <div class="flex gap-8">
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&search={{ search_query }}&category={{ selected_category }}&sort={{ sort_by }}" class="btn btn-sm">← Previous</a>
+        {% endif %}
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&search={{ search_query }}&category={{ selected_category }}&sort={{ sort_by }}" class="btn btn-sm">Next →</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

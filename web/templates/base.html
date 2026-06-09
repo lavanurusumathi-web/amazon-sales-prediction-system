@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Sales Predictor - {% block title %}Dashboard{% endblock %}</title>
+    <style>
+        /* ===== CSS Reset & Variables ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #ff9900;
+            --primary-dark: #e88b00;
+            --primary-light: #ffb84d;
+            --bg: #0f1419;
+            --bg-card: #1a2332;
+            --bg-card-hover: #1e2a3d;
+            --bg-sidebar: #0d1117;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --text-dim: #484f58;
+            --border: #21262d;
+            --border-light: #30363d;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --info: #58a6ff;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+            --transition: all 0.2s ease;
+        }
+
+        html { font-size: 14px; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* ===== Sidebar ===== */
+        .sidebar {
+            width: 250px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-brand {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sidebar-brand .logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #000;
+        }
+
+        .sidebar-brand h1 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .sidebar-brand h1 span {
+            color: var(--primary);
+        }
+        .sidebar-brand small {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: block;
+        }
+
+        .sidebar-nav { padding: 16px 12px; flex: 1; }
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--radius);
+            margin-bottom: 2px;
+            transition: var(--transition);
+            font-size: 14px;
+        }
+        .sidebar-nav a:hover {
+            background: var(--bg-card);
+            color: var(--text);
+        }
+        .sidebar-nav a.active {
+            background: var(--primary);
+            color: #000;
+            font-weight: 600;
+        }
+        .sidebar-nav a .icon { font-size: 18px; width: 24px; text-align: center; }
+        .sidebar-nav .badge {
+            margin-left: auto;
+            background: var(--border-light);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .sidebar-nav a.active .badge { background: rgba(0,0,0,0.2); color: #000; }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        /* ===== Main Content ===== */
+        .main-content {
+            flex: 1;
+            margin-left: 250px;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .topbar h2 { font-size: 20px; font-weight: 600; }
+        .topbar-actions { display: flex; gap: 12px; align-items: center; }
+
+        .content { padding: 24px 32px; }
+
+        /* ===== Cards ===== */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            transition: var(--transition);
+        }
+        .card:hover { border-color: var(--border-light); }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .card-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            transition: var(--transition);
+        }
+        .stat-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        .stat-card .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-card .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 8px;
+            color: var(--text);
+        }
+        .stat-card .stat-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ===== Grid ===== */
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .grid-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
+        /* ===== Buttons ===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-light);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+        .btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--text-muted);
+        }
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #000;
+        }
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+        .btn-success {
+            background: var(--success);
+            border-color: var(--success);
+            color: #000;
+        }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+        .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ===== Forms ===== */
+        input, select {
+            background: var(--bg);
+            border: 1px solid var(--border-light);
+            color: var(--text);
+            padding: 8px 14px;
+            border-radius: var(--radius);
+            font-size: 14px;
+            transition: var(--transition);
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.15);
+        }
+        input::placeholder { color: var(--text-dim); }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+
+        /* ===== Tables ===== */
+        .table-container {
+            overflow-x: auto;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        thead { background: var(--bg); }
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        tr:hover { background: rgba(255,255,255,0.02); }
+
+        /* ===== Status ===== */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .status-trained { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+        .status-trained::before { background: var(--success); }
+        .status-untrained { background: rgba(210, 153, 34, 0.15); color: var(--warning); }
+        .status-untrained::before { background: var(--warning); }
+        .status-error { background: rgba(248, 81, 73, 0.15); color: var(--danger); }
+        .status-error::before { background: var(--danger); }
+
+        /* ===== Charts (simple bar/line placeholders) ===== */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            position: relative;
+        }
+
+        /* ===== Product Card ===== */
+        .product-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            transition: var(--transition);
+        }
+        .product-card:hover {
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        .product-card .title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .product-card .meta {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .product-card .meta span { display: flex; align-items: center; gap: 4px; }
+
+        /* ===== Loading ===== */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-light);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 16px 24px;
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+            display: none;
+            max-width: 400px;
+            animation: slideIn 0.3s ease;
+        }
+        .toast.show { display: flex; align-items: center; gap: 12px; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+        }
+        .modal h3 { margin-bottom: 16px; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 1024px) {
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .grid-3 { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .content { padding: 16px; }
+            .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+            .topbar { padding: 12px 16px; }
+        }
+
+        /* ===== Utility ===== */
+        .flex { display: flex; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .gap-8 { gap: 8px; }
+        .gap-16 { gap: 16px; }
+        .mt-16 { margin-top: 16px; }
+        .mt-24 { margin-top: 24px; }
+        .mb-16 { margin-bottom: 16px; }
+        .mb-24 { margin-bottom: 24px; }
+        .text-muted { color: var(--text-muted); }
+        .text-center { text-align: center; }
+        .text-success { color: var(--success); }
+        .text-warning { color: var(--warning); }
+        .text-danger { color: var(--danger); }
+        .text-info { color: var(--info); }
+        .w-full { width: 100%; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* ===== Progress Bar ===== */
+        .progress-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 12px;
+            display: none;
+        }
+        .progress-bar.active { display: block; }
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo">A</div>
+            <div>
+                <h1>Amazon <span>Sales</span></h1>
+                <small>Prediction System</small>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/" class="{% if active_page == 'dashboard' %}active{% endif %}">
+                <span class="icon">📊</span> Dashboard
+            </a>
+            <a href="/products" class="{% if active_page == 'products' %}active{% endif %}">
+                <span class="icon">📦</span> Products
+            </a>
+            <a href="/predictions" class="{% if active_page == 'predictions' %}active{% endif %}">
+                <span class="icon">🎯</span> Predictions
+            </a>
+            <a href="/scraper" class="{% if active_page == 'scraper' %}active{% endif %}">
+                <span class="icon">🕸️</span> Live Scraper
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            v1.0.0 &bull; ML Sales Predictor
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="topbar">
+            <button class="btn btn-sm" style="display:none;" id="menuToggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+            <h2>{% block heading %}Dashboard{% endblock %}</h2>
+            <div class="topbar-actions">
+                <span class="status-badge {% if is_trained %}status-trained{% else %}status-untrained{% endif %}" id="statusBadge">
+                    {% if is_trained %}● Trained{% else %}○ Not Trained{% endif %}
+                </span>
+                {% block topbar_actions %}{% endblock %}
+            </div>
+        </header>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toastMessage');
+            msg.textContent = message;
+            toast.style.borderColor = isError ? 'var(--danger)' : 'var(--success)';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+
+        function updateTrainingStatus(trained) {
+            const badge = document.getElementById('statusBadge');
+            if (trained) {
+                badge.className = 'status-badge status-trained';
+                badge.textContent = '● Trained';
+            } else {
+                badge.className = 'status-badge status-untrained';
+                badge.textContent = '○ Not Trained';
+            }
+        }
+
+        // Show menu toggle on mobile
+        if (window.innerWidth <= 768) {
+            document.getElementById('menuToggle').style.display = 'flex';
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

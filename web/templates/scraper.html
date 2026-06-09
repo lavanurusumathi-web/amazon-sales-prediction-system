@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Live Scraper{% endblock %}
+{% block heading %}Live Amazon Scraper{% endblock %}
+
+{% block topbar_actions %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-24">
+    <div class="card mb-16" style="background: rgba(255,153,0,0.08); border-color: rgba(255,153,0,0.2);">
+        <div class="text-muted" style="font-size: 12px;">
+            ⚠️ For educational/research purposes only. The scraper uses polite delays (2s) between requests to be respectful.
+        </div>
+    </div>
+</div>
+
+<div class="grid-2 mb-24">
+    <!-- Search Amazon -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">🔍 Search Amazon</div>
+            <div class="card-subtitle">Find real products by keyword</div>
+        </div>
+        <div class="flex gap-8" style="align-items: flex-end;">
+            <div class="form-group" style="flex:1; margin-bottom:0;">
+                <label>Search Query</label>
+                <input type="text" id="searchQuery" class="w-full" placeholder="e.g., wireless headphones">
+            </div>
+            <button class="btn btn-primary" onclick="searchAmazon()">Search</button>
+        </div>
+        <div id="searchResults" class="mt-16"></div>
+    </div>
+
+    <!-- Lookup by ASIN -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">📋 Product Lookup</div>
+            <div class="card-subtitle">Get detailed info by ASIN</div>
+        </div>
+        <div class="flex gap-8" style="align-items: flex-end;">
+            <div class="form-group" style="flex:1; margin-bottom:0;">
+                <label>ASIN</label>
+                <input type="text" id="asinInput" class="w-full" placeholder="e.g., B08N5WRWNW">
+            </div>
+            <button class="btn btn-primary" onclick="lookupProduct()">Lookup</button>
+        </div>
+        <div id="productDetail" class="mt-16"></div>
+    </div>
+</div>
+
+<!-- Result Detail -->
+<div id="detailCard" style="display:none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function searchAmazon() {
+    const q = document.getElementById('searchQuery').value.trim();
+    if (!q) return showToast('Enter a search query', true);
+
+    const container = document.getElementById('searchResults');
+    container.innerHTML = '<div class="loading"></div> <span class="text-muted">Searching Amazon...</span>';
+
+    try {
+        const resp = await fetch(`/api/scrape/search?q=${encodeURIComponent(q)}&limit=10`);
+        const data = await resp.json();
+        if (data.error) { container.innerHTML = `<span class="text-danger">${data.error}</span>`; return; }
+        if (!data.length) { container.innerHTML = '<span class="text-muted">No results found</span>'; return; }
+
+        let html = '<div class="table-container" style="max-height:400px;overflow-y:auto;"><table><thead><tr><th>Product</th><th>Price</th><th>Rating</th><th>Action</th></tr></thead><tbody>';
+        data.forEach(p => {
+            html += `<tr>
+                <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title || 'N/A'}</td>
+                <td>${p.price ? '$' + p.price.toFixed(2) : 'N/A'}</td>
+                <td>${p.rating ? '⭐' + p.rating.toFixed(1) : 'N/A'}</td>
+                <td><button class="btn btn-sm" onclick="lookupProduct('${p.asin}')">Details</button></td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+
+async function lookupProduct(asin) {
+    const id = asin || document.getElementById('asinInput').value.trim();
+    if (!id) return showToast('Enter an ASIN', true);
+
+    const container = document.getElementById('productDetail');
+    container.innerHTML = '<div class="loading"></div> <span class="text-muted">Fetching product...</span>';
+
+    try {
+        const formData = new FormData();
+        formData.append('asin', id);
+        const resp = await fetch('/api/scrape', { method: 'POST', body: formData });
+        const data = await resp.json();
+
+        if (data.error) { container.innerHTML = `<span class="text-danger">${data.error}</span>`; return; }
+
+        let stars = '';
+        if (data.rating) {
+            const r = Math.round(data.rating);
+            stars = '⭐'.repeat(r) + '☆'.repeat(5 - r) + ` (${data.rating.toFixed(1)})`;
+        }
+
+        let html = `<div class="card" style="margin-top:12px;">
+            <h3 style="margin-bottom:8px;">${data.title || 'Unknown Product'}</h3>
+            <div class="grid-4 mb-16">
+                <div class="stat-card"><div class="stat-label">Price</div><div class="stat-value">${data.price ? '$' + data.price.toFixed(2) : 'N/A'}</div></div>
+                <div class="stat-card"><div class="stat-label">List Price</div><div class="stat-value">${data.list_price ? '$' + data.list_price.toFixed(2) : 'N/A'}</div></div>
+                <div class="stat-card"><div class="stat-label">Discount</div><div class="stat-value">${data.discount_pct !== undefined ? data.discount_pct + '%' : 'N/A'}</div></div>
+                <div class="stat-card"><div class="stat-label">Best Seller Rank</div><div class="stat-value">${data.best_seller_rank ? '#' + data.best_seller_rank.toLocaleString() : 'N/A'}</div></div>
+            </div>
+            <div class="flex gap-16 mb-16">
+                <div><strong>Rating:</strong> ${stars || 'N/A'}</div>
+                <div><strong>Reviews:</strong> ${data.review_count ? data.review_count.toLocaleString() : 'N/A'}</div>
+                <div><strong>Brand:</strong> ${data.brand || 'N/A'}</div>
+                <div><strong>Category:</strong> ${data.category || 'N/A'}</div>
+            </div>`;
+        if (data.features && data.features.length) {
+            html += '<div><strong>Features:</strong><ul style="margin-top:8px;padding-left:20px;">';
+            data.features.slice(0, 5).forEach(f => { html += `<li style="font-size:13px;color:var(--text-muted);">${f}</li>`; });
+            html += '</ul></div>';
+        }
+        html += `<div class="text-muted mt-16" style="font-size:11px;">ASIN: ${data.asin} | Scraped: ${data.scraped_at}</div>`;
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<span class="text-danger">Error: ${e.message}</span>`;
+    }
+}
+</script>
+{% endblock %}

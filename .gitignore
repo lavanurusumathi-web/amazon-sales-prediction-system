@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+data/amazon_sales_data.parquet
+models/models_pretrained/
+*.joblib
+*.json
+!requirements.txt
+!.vscode/
+node_modules/
+.env
