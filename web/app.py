@@ -67,72 +67,62 @@ def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+_data_loaded: bool = False
+
+def _ensure_data():
+    """Lazily generate/load data — keeps Render startup under health check timeout."""
+    global dataset, _data_loaded
+    if _data_loaded:
+        return
+    is_render = os.environ.get("RENDER") == "true"
+    try:
+        n_prod = 100 if is_render else 2000
+        n_days_val = 90 if is_render else 365
+        dataset.generate(n_products=n_prod, n_days=n_days_val)
+        _data_loaded = True
+        logger.info(f"Dataset ready: {len(dataset.data):,} rows")
+    except Exception as e:
+        logger.error(f"Failed to load dataset: {e}")
+
+
 @app.on_event("startup")
 async def startup():
-    """Initialize the system, loading pre-trained models if available."""
+    """Initialize the system — load model instantly, defer data generation."""
     global dataset, preprocessor, feature_engineer, trainer, evaluator, predictor, is_trained, amazon_scraper
 
     data_dir = get_project_root() / "data"
     model_dir = get_project_root() / "models"
 
-    logger.info("Initializing Amazon Sales Prediction System...")
+    logger.info("Starting Amazon Sales Prediction System...")
 
-    # Initialize components
+    # Initialize components (no data generation yet)
     dataset = AmazonSalesDataset(data_dir=str(data_dir))
     preprocessor = DataPreprocessor()
     feature_engineer = FeatureEngineer()
     trainer = ModelTrainer(model_dir=str(model_dir))
     evaluator = ModelEvaluator()
 
-    # On Render free tier, pretrain_light.py already generates data (100 products x 90 days)
-    is_render = os.environ.get("RENDER") == "true"
-    if is_render:
-        try:
-            df = dataset.generate(n_products=100, n_days=90)
-            logger.info(f"Loaded/generated dataset: {len(df):,} rows")
-        except Exception as e:
-            logger.error(f"Failed to load dataset: {e}")
-    else:
-        try:
-            df = dataset.generate(n_products=2000, n_days=365)
-            logger.info(f"Loaded/generated dataset: {len(df):,} rows")
-        except Exception as e:
-            logger.error(f"Failed to load dataset: {e}")
-
-    # Try to load pre-trained models (Random Forest only for free tier)
+    # Load pre-trained Random Forest model only
     pretrain_dir = model_dir / "models_pretrained"
     if pretrain_dir.exists():
         try:
-            logger.info("Loading pre-trained models...")
-
+            logger.info("Loading pre-trained model...")
             rf_path = pretrain_dir / "random_forest.joblib"
             if rf_path.exists():
                 trainer.models["random_forest"] = joblib.load(str(rf_path))
-
             predictor = SalesPredictor(
                 models=trainer.models,
                 feature_engineer=feature_engineer,
                 preprocessor=preprocessor,
             )
             is_trained = True
-            logger.info(f"Pre-trained models loaded: {list(trainer.models.keys())}")
+            logger.info("Model loaded")
         except Exception as e:
-            logger.warning(f"Could not load pre-trained models: {e}")
+            logger.warning(f"Could not load model: {e}")
             is_trained = False
 
-    # Chrome scraper — skip on Render (no browser on free tier)
-    if not is_render:
-        try:
-            logger.info("Starting Chrome scraper (headless)...")
-            from data.scraper import AmazonScraper
-            amazon_scraper = AmazonScraper()
-            amazon_scraper._get_driver()
-            logger.info("Chrome scraper ready")
-        except Exception as e:
-            logger.warning(f"Chrome scraper not available: {e}")
-            amazon_scraper = None
-    else:
-        logger.info("Skipping Chrome scraper on Render (no browser available)")
+    amazon_scraper = None
+    logger.info("Ready")
 
 
 # ============================================================
@@ -143,6 +133,7 @@ async def startup():
 async def dashboard(request: Request):
     """Main dashboard page."""
     global dataset, is_trained
+    _ensure_data()
 
     stats = {}
     category_data = pd.DataFrame()
@@ -412,6 +403,7 @@ def _run_training():
 async def train_models():
     """Train ML models in a background thread."""
     global dataset, is_training
+    _ensure_data()
 
     if not dataset or dataset._data is None:
         raise HTTPException(400, "No dataset loaded. Generate data first.")
@@ -509,6 +501,7 @@ async def predict_product(product_id: str, days: int = Query(30)):
 async def get_stats():
     """Get dashboard statistics."""
     global dataset
+    _ensure_data()
 
     if not dataset or dataset._data is None:
         return JSONResponse({"error": "No data"})
