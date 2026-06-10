@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements-prod.txt && python pretrain_light.py
+    buildCommand: pip install -r requirements-prod.txt
     startCommand: python run_prod.py
     envVars:
       - key: PYTHON_VERSION

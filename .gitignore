@@ -5,6 +5,7 @@ __pycache__/
 data/amazon_sales_data.parquet
 *.json
 !requirements.txt
+!models/models_pretrained/*.json
 !.vscode/
 node_modules/
 .env

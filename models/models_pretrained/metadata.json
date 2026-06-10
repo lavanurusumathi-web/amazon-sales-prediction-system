@@ -1,0 +1,8 @@
+{
+  "timestamp": "pretrained",
+  "models": [
+    "random_forest"
+  ],
+  "metrics": {},
+  "best_model": null
+}
