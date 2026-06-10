@@ -3,8 +3,8 @@ services:
     name: amazon-sales-predictor
     env: python
     region: oregon
-    plan: free
-    buildCommand: pip install -r requirements-prod.txt && python pretrain_light.py
+    plan: starter
+    buildCommand: pip install -r requirements.txt && python pretrain.py
     startCommand: python run_prod.py
     envVars:
       - key: PYTHON_VERSION

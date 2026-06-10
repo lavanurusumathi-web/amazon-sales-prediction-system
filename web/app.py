@@ -112,9 +112,10 @@ async def startup():
             if rf_path.exists():
                 trainer.models["random_forest"] = joblib.load(str(rf_path))
 
-            ew_path = pretrain_dir / "ensemble_weights.joblib"
+            ew_path = pretrain_dir / "ensemble_weights.json"
             if ew_path.exists():
-                trainer.models["ensemble_weights"] = joblib.load(str(ew_path))
+                with open(ew_path) as f:
+                    trainer.models["ensemble_weights"] = json.load(f)
 
             # Build predictor
             weights = trainer.models.get("ensemble_weights", {})

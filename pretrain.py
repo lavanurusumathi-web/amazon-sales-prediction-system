@@ -10,7 +10,7 @@ from models.train import ModelTrainer
 
 print("Generating small training dataset...")
 ds = AmazonSalesDataset(data_dir="data")
-df = ds.generate(n_products=500, n_days=180, force=True)
+df = ds.generate(n_products=2000, n_days=365, force=True)
 print(f"  {len(df):,} rows, {df['product_id'].nunique()} products")
 
 print("Feature engineering...")
