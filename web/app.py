@@ -84,12 +84,20 @@ async def startup():
     trainer = ModelTrainer(model_dir=str(model_dir))
     evaluator = ModelEvaluator()
 
-    # Try to generate sample data if none exists
-    try:
-        df = dataset.generate(n_products=2000, n_days=365)
-        logger.info(f"Loaded/generated dataset: {len(df):,} rows")
-    except Exception as e:
-        logger.error(f"Failed to load dataset: {e}")
+    # On Render free tier, pretrain_light.py already generates data (100 products x 90 days)
+    is_render = os.environ.get("RENDER") == "true"
+    if is_render:
+        try:
+            df = dataset.generate(n_products=100, n_days=90)
+            logger.info(f"Loaded/generated dataset: {len(df):,} rows")
+        except Exception as e:
+            logger.error(f"Failed to load dataset: {e}")
+    else:
+        try:
+            df = dataset.generate(n_products=2000, n_days=365)
+            logger.info(f"Loaded/generated dataset: {len(df):,} rows")
+        except Exception as e:
+            logger.error(f"Failed to load dataset: {e}")
 
     # Try to load pre-trained models (Random Forest only for free tier)
     pretrain_dir = model_dir / "models_pretrained"
