@@ -40,7 +40,7 @@ payload = {
         "plan": "free",
         "region": "oregon",
         "envSpecificDetails": {
-            "buildCommand": "pip install -r requirements-prod.txt && python pretrain_light.py",
+            "buildCommand": "pip install -r requirements-prod.txt",
             "startCommand": "python run_prod.py"
         }
     }
@@ -48,7 +48,8 @@ payload = {
 r = requests.post(f"{BASE}/services", headers=HEADERS, json=payload, timeout=30)
 print(f"  Status: {r.status_code}")
 resp = r.json()
-service_id = resp.get("id") or resp.get("serviceId")
+svc = resp.get("service", resp)
+service_id = svc.get("id") or resp.get("id") or resp.get("serviceId")
 if not service_id:
     print(f"  ERROR: {json.dumps(resp, indent=2)}")
     sys.exit(1)
