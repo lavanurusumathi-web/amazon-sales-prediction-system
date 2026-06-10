@@ -91,37 +91,18 @@ async def startup():
     except Exception as e:
         logger.error(f"Failed to load dataset: {e}")
 
-    # Try to load pre-trained models
+    # Try to load pre-trained models (Random Forest only for free tier)
     pretrain_dir = model_dir / "models_pretrained"
     if pretrain_dir.exists():
         try:
             logger.info("Loading pre-trained models...")
-            if XGB_AVAILABLE:
-                import xgboost as xgb
-                xgb_path = pretrain_dir / "xgboost.json"
-                if xgb_path.exists():
-                    model = xgb.XGBRegressor()
-                    model.load_model(str(xgb_path))
-                    trainer.models["xgboost"] = model
-
-            lgb_path = pretrain_dir / "lightgbm.joblib"
-            if lgb_path.exists():
-                trainer.models["lightgbm"] = joblib.load(str(lgb_path))
 
             rf_path = pretrain_dir / "random_forest.joblib"
             if rf_path.exists():
                 trainer.models["random_forest"] = joblib.load(str(rf_path))
 
-            ew_path = pretrain_dir / "ensemble_weights.json"
-            if ew_path.exists():
-                with open(ew_path) as f:
-                    trainer.models["ensemble_weights"] = json.load(f)
-
-            # Build predictor
-            weights = trainer.models.get("ensemble_weights", {})
             predictor = SalesPredictor(
-                models={k: v for k, v in trainer.models.items() if v is not None and k != "ensemble_weights"},
-                weights=weights,
+                models=trainer.models,
                 feature_engineer=feature_engineer,
                 preprocessor=preprocessor,
             )

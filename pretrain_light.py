@@ -1,4 +1,4 @@
-"""Lightweight pre-training for Render free tier (512MB RAM)."""
+"""Lightweight pre-training for Render free tier (512MB RAM) — Random Forest only."""
 import sys, time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -34,13 +34,12 @@ X_tr, y_tr = X.iloc[:val_idx], y.iloc[:val_idx]
 X_val, y_val = X.iloc[val_idx:split_idx], y.iloc[val_idx:split_idx]
 print(f"  Train: {len(X_tr):,} | Val: {len(X_val):,}")
 
-print("Training models...")
+print("Training Random Forest model...")
 t0 = time.time()
 trainer = ModelTrainer(model_dir="models")
-trainer.train_ensemble(X_tr, y_tr, X_val, y_val, tune=False)
+trainer.train_random_forest(X_tr, y_tr)
 elapsed = time.time() - t0
 print(f"  Done in {elapsed:.0f}s")
-print(f"  Models: {list(trainer.models.keys())}")
 
 save_path = trainer.save_models(tag="pretrained")
 print(f"Saved: {save_path}")

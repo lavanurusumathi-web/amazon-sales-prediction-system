@@ -36,11 +36,13 @@ payload = {
     "branch": "main",
     "autoDeploy": "yes",
     "serviceDetails": {
-        "env": "python",
-        "plan": "starter",
+        "runtime": "python",
+        "plan": "free",
         "region": "oregon",
-        "buildCommand": "pip install -r requirements.txt && python pretrain.py",
-        "startCommand": "python run_prod.py"
+        "envSpecificDetails": {
+            "buildCommand": "pip install -r requirements-prod.txt && python pretrain_light.py",
+            "startCommand": "python run_prod.py"
+        }
     }
 }
 r = requests.post(f"{BASE}/services", headers=HEADERS, json=payload, timeout=30)
