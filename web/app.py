@@ -120,16 +120,19 @@ async def startup():
             logger.warning(f"Could not load pre-trained models: {e}")
             is_trained = False
 
-    # Initialize persistent Selenium scraper (reuse across requests)
-    try:
-        logger.info("Starting Chrome scraper (headless)...")
-        from data.scraper import AmazonScraper
-        amazon_scraper = AmazonScraper()
-        amazon_scraper._get_driver()
-        logger.info("Chrome scraper ready")
-    except Exception as e:
-        logger.warning(f"Chrome scraper not available: {e}")
-        amazon_scraper = None
+    # Chrome scraper — skip on Render (no browser on free tier)
+    if not is_render:
+        try:
+            logger.info("Starting Chrome scraper (headless)...")
+            from data.scraper import AmazonScraper
+            amazon_scraper = AmazonScraper()
+            amazon_scraper._get_driver()
+            logger.info("Chrome scraper ready")
+        except Exception as e:
+            logger.warning(f"Chrome scraper not available: {e}")
+            amazon_scraper = None
+    else:
+        logger.info("Skipping Chrome scraper on Render (no browser available)")
 
 
 # ============================================================
