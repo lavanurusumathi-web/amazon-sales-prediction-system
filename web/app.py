@@ -67,46 +67,27 @@ def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-_data_loaded: bool = False
+_initialized: bool = False
 
-def _ensure_data():
-    """Lazily generate/load data — keeps Render startup under health check timeout."""
-    global dataset, _data_loaded
-    if _data_loaded:
+def _lazy_init():
+    """Lazily generate/load data AND load pre-trained model — keeps Render startup fast."""
+    global dataset, _initialized, predictor, is_trained, trainer, feature_engineer, preprocessor
+    if _initialized:
         return
     is_render = os.environ.get("RENDER") == "true"
     try:
         n_prod = 100 if is_render else 2000
         n_days_val = 90 if is_render else 365
         dataset.generate(n_products=n_prod, n_days=n_days_val)
-        _data_loaded = True
         logger.info(f"Dataset ready: {len(dataset.data):,} rows")
     except Exception as e:
         logger.error(f"Failed to load dataset: {e}")
 
-
-@app.on_event("startup")
-async def startup():
-    """Initialize the system — load model instantly, defer data generation."""
-    global dataset, preprocessor, feature_engineer, trainer, evaluator, predictor, is_trained, amazon_scraper
-
-    data_dir = get_project_root() / "data"
+    # Load pre-trained model
     model_dir = get_project_root() / "models"
-
-    logger.info("Starting Amazon Sales Prediction System...")
-
-    # Initialize components (no data generation yet)
-    dataset = AmazonSalesDataset(data_dir=str(data_dir))
-    preprocessor = DataPreprocessor()
-    feature_engineer = FeatureEngineer()
-    trainer = ModelTrainer(model_dir=str(model_dir))
-    evaluator = ModelEvaluator()
-
-    # Load pre-trained Random Forest model only
     pretrain_dir = model_dir / "models_pretrained"
     if pretrain_dir.exists():
         try:
-            logger.info("Loading pre-trained model...")
             rf_path = pretrain_dir / "random_forest.joblib"
             if rf_path.exists():
                 trainer.models["random_forest"] = joblib.load(str(rf_path))
@@ -119,21 +100,41 @@ async def startup():
             logger.info("Model loaded")
         except Exception as e:
             logger.warning(f"Could not load model: {e}")
-            is_trained = False
+    _initialized = True
 
+
+@app.on_event("startup")
+async def startup():
+    """Lightning-fast startup — defer everything to first request."""
+    global dataset, preprocessor, feature_engineer, trainer, evaluator, predictor, is_trained, amazon_scraper
+
+    data_dir = get_project_root() / "data"
+    model_dir = get_project_root() / "models"
+
+    # Initialize lightweight components only (no data, no model loading)
+    dataset = AmazonSalesDataset(data_dir=str(data_dir))
+    preprocessor = DataPreprocessor()
+    feature_engineer = FeatureEngineer()
+    trainer = ModelTrainer(model_dir=str(model_dir))
+    evaluator = ModelEvaluator()
     amazon_scraper = None
-    logger.info("Ready")
+    logger.info("Ready (models & data will load on demand)")
 
 
 # ============================================================
 # API Routes
 # ============================================================
 
+@app.get("/health")
+async def health():
+    """Instant health check — no data/model loading."""
+    return {"status": "ok"}
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Main dashboard page."""
     global dataset, is_trained
-    _ensure_data()
+    _lazy_init()
 
     stats = {}
     category_data = pd.DataFrame()
@@ -403,7 +404,7 @@ def _run_training():
 async def train_models():
     """Train ML models in a background thread."""
     global dataset, is_training
-    _ensure_data()
+    _lazy_init()
 
     if not dataset or dataset._data is None:
         raise HTTPException(400, "No dataset loaded. Generate data first.")
@@ -501,7 +502,7 @@ async def predict_product(product_id: str, days: int = Query(30)):
 async def get_stats():
     """Get dashboard statistics."""
     global dataset
-    _ensure_data()
+    _lazy_init()
 
     if not dataset or dataset._data is None:
         return JSONResponse({"error": "No data"})
