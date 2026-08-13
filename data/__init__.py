@@ -1,5 +1,9 @@
 from .dataset import AmazonSalesDataset, generate_sample_data
 from .preprocessor import DataPreprocessor
-from .scraper import AmazonScraper
+
+try:
+    from .scraper import AmazonScraper
+except ImportError:
+    AmazonScraper = None
 
 __all__ = ["AmazonSalesDataset", "generate_sample_data", "DataPreprocessor", "AmazonScraper"]

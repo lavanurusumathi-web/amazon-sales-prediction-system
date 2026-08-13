@@ -1,12 +1,23 @@
 .commandcode/
 server.log
+server_check.log
 models/models_*/
 venv/
 __pycache__/
 *.parquet
+*.pptx
 payload.json
 render_payload.json
 data/__pycache__/
 features/__pycache__/
 models/__pycache__/
 web/__pycache__/
+screenshots/
+
+.vercel
+
+# Deployment scripts contain API keys — keep out of git
+deploy_render.py
+_deploy.py
+_poll.py
+_poll_deploy.py

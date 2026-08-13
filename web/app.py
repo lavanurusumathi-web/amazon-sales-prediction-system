@@ -1,14 +1,3 @@
-"""
-FastAPI Web Dashboard for Amazon Sales Prediction System
-
-Provides:
-- Sales dashboard with key metrics and visualizations
-- Product browsing with search and filter
-- Sales predictions with confidence intervals
-- What-if analysis (price/discount scenarios)
-- Feature importance viewer
-- Category performance breakdown
-"""
 import os
 import sys
 import logging
@@ -191,6 +180,7 @@ async def products_page(
 ):
     """Product listing page."""
     global dataset
+    _lazy_init()
 
     products = []
     categories = []
@@ -271,11 +261,13 @@ async def predictions_page(
 ):
     """Sales predictions page."""
     global dataset, predictor, is_trained
+    _lazy_init()
 
     forecast = []
     product_info = {}
     what_if_scenarios = []
     products_list = []
+    forecast_total = 0
 
     if dataset and dataset._data is not None:
         df = dataset.data
@@ -323,6 +315,7 @@ async def predictions_page(
         context={
             "request": request,
             "forecast": forecast,
+            "forecast_total": forecast_total,
             "product_info": product_info,
             "product_id": product_id or "",
             "days": days,
@@ -332,6 +325,7 @@ async def predictions_page(
             "active_page": "predictions"
         }
     )
+
 
 def _run_training():
     """Run the full training pipeline in a background thread."""
@@ -449,6 +443,7 @@ async def training_status():
 async def get_product(product_id: str):
     """Get product details and history."""
     global dataset
+    _lazy_init()
 
     if not dataset or dataset._data is None:
         raise HTTPException(404, "No data loaded")
@@ -476,6 +471,8 @@ async def get_product(product_id: str):
 
     # Sales history (last 90 days)
     history = product_df.tail(90)[["date", "sales_units", "price", "rating"]].to_dict("records")
+    for row in history:
+        row["date"] = str(row["date"])
 
     return JSONResponse({"product": info, "history": history})
 
@@ -527,6 +524,7 @@ async def get_stats():
 async def category_breakdown():
     """Get sales breakdown by category."""
     global dataset
+    _lazy_init()
 
     if not dataset or dataset._data is None:
         return JSONResponse({"error": "No data"})
@@ -545,6 +543,7 @@ async def category_breakdown():
 async def daily_trends(days: int = Query(90)):
     """Get daily sales trends."""
     global dataset
+    _lazy_init()
 
     if not dataset or dataset._data is None:
         return JSONResponse({"error": "No data"})
@@ -576,6 +575,7 @@ async def regenerate_data(n_products: int = Query(2000), n_days: int = Query(365
 async def search_products(q: str = Query(""), limit: int = Query(20)):
     """Search products by name."""
     global dataset
+    _lazy_init()
 
     if not dataset or dataset._data is None:
         return JSONResponse([])
@@ -635,7 +635,8 @@ async def scrape_search(q: str = Query(...), limit: int = Query(10)):
 # Static Files (MUST be last — routes defined after mount get swallowed)
 # ============================================================
 
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ def check_dependencies():
         logger.error("Missing required dependencies:")
         for pkg in missing:
             logger.error(f"  - {pkg}")
-        logger.info(f"\nInstall with: pip install {' '.join(missing)}")
+        logger.info(f"\nInstall with: pip install -r requirements-dev.txt")
         return False
 
     return True

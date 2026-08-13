@@ -346,16 +346,19 @@ class ModelTrainer:
             best_weights = weights.copy()
 
             # Coarse grid search for best combination
+            names = list(predictions.keys())
             for w1 in np.arange(0, 1.1, 0.2):
                 for w2 in np.arange(0, 1.1, 0.2):
                     w3 = 1.0 - w1 - w2
-                    if w3 < 0:
+                    if w3 < -1e-9:
                         continue
-                    names = list(predictions.keys())
-                    if len(names) >= 2:
-                        w = {names[0]: w1, names[1]: w2}
-                        if len(names) >= 3:
-                            w[names[2]] = w3
+                    if len(names) == 1:
+                        w = {names[0]: 1.0}
+                    elif len(names) == 2:
+                        # Keep weights normalized for two-model ensembles
+                        w = {names[0]: w1, names[1]: 1.0 - w1}
+                    else:
+                        w = {names[0]: w1, names[1]: w2, names[2]: w3}
 
                     ensemble_pred = np.zeros(len(y_val))
                     for name, weight in w.items():
@@ -364,7 +367,7 @@ class ModelTrainer:
                     rmse = np.sqrt(mean_squared_error(y_val, ensemble_pred))
                     if rmse < best_rmse:
                         best_rmse = rmse
-                        best_weights = w
+                        best_weights = dict(w)
 
             logger.info(f"Ensemble weights: {best_weights}")
             logger.info(f"Ensemble validation RMSE: {best_rmse:.4f}")

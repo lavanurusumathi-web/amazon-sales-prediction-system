@@ -6,6 +6,7 @@ services:
     plan: free
     buildCommand: pip install -r requirements-prod.txt
     startCommand: python run_prod.py
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"

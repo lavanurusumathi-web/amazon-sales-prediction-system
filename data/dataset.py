@@ -338,9 +338,13 @@ class AmazonSalesDataset:
             random_seed=seed
         )
 
-        os.makedirs(self.data_dir, exist_ok=True)
-        self._data.to_parquet(self._cache_path, index=False)
-        logger.info(f"Cached data to {self._cache_path}")
+        # Cache to disk when possible (e.g., read-only serverless FS fails silently)
+        try:
+            os.makedirs(self.data_dir, exist_ok=True)
+            self._data.to_parquet(self._cache_path, index=False)
+            logger.info(f"Cached data to {self._cache_path}")
+        except Exception as e:
+            logger.warning(f"Could not cache data to {self._cache_path}: {e}")
 
         return self._data
 
